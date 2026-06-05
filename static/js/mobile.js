@@ -71,6 +71,12 @@ const mPreviewOverlayLayer = document.getElementById('m-preview-overlay-layer');
 
 const mToastContainer = document.getElementById('m-toast-container');
 
+const mEventCardEffect = document.getElementById('m-event-card-effect');
+const mEventCardOpacity = document.getElementById('m-event-card-opacity');
+const mCardOpacityVal = document.getElementById('m-card-opacity-val');
+const mEventCardColor = document.getElementById('m-event-card-color');
+const mEventTextColor = document.getElementById('m-event-text-color');
+
 // Load initial data
 document.addEventListener('DOMContentLoaded', () => {
   init();
@@ -111,6 +117,11 @@ function init() {
   // Opacity slider
   mEventBgOpacity.addEventListener('input', (e) => {
     mOpacityVal.textContent = `${e.target.value}%`;
+  });
+
+  // Card styling sliders
+  mEventCardOpacity.addEventListener('input', (e) => {
+    mCardOpacityVal.textContent = `${e.target.value}%`;
   });
 
   // Template tag buttons
@@ -516,6 +527,42 @@ function openPreview(event) {
   }
   mPreviewOverlayLayer.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
   
+  // Centered card styles (Glass or Solid overlay + font color)
+  const previewContentBox = document.querySelector('#m-preview-overlay .m-preview-content-box');
+  const cardHex = event.card_color || '#ffffff';
+  const cardAlpha = event.card_opacity !== undefined ? event.card_opacity : 0.05;
+  
+  function getRgba(hex, alpha) {
+    let red = 255, green = 255, blue = 255;
+    if (hex.startsWith('#')) {
+      const cleanHex = hex.substring(1);
+      if (cleanHex.length === 3) {
+        red = parseInt(cleanHex[0] + cleanHex[0], 16);
+        green = parseInt(cleanHex[1] + cleanHex[1], 16);
+        blue = parseInt(cleanHex[2] + cleanHex[2], 16);
+      } else if (cleanHex.length === 6) {
+        red = parseInt(cleanHex.substring(0, 2), 16);
+        green = parseInt(cleanHex.substring(2, 4), 16);
+        blue = parseInt(cleanHex.substring(4, 6), 16);
+      }
+    }
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+  }
+
+  previewContentBox.style.backgroundColor = getRgba(cardHex, cardAlpha);
+  if (event.card_effect === 'solid') {
+    previewContentBox.style.backdropFilter = 'none';
+    previewContentBox.style.webkitBackdropFilter = 'none';
+  } else {
+    previewContentBox.style.backdropFilter = 'blur(25px)';
+    previewContentBox.style.webkitBackdropFilter = 'blur(25px)';
+  }
+
+  // Apply custom text colors
+  const txtColor = event.text_color || '#ffffff';
+  mPreviewEventTitle.style.color = txtColor;
+  mPreviewEventCountdown.style.color = txtColor;
+
   openSheet(mPreviewOverlay);
 }
 
@@ -593,6 +640,13 @@ function openEventSheet(event = null, prefillDate = null) {
     });
     
     mEventTemplateInput.value = event.template || t('defaultTemplate');
+
+    mEventCardEffect.value = event.card_effect || 'glass';
+    mEventCardOpacity.value = event.card_opacity !== undefined ? Math.round(event.card_opacity * 100) : 5;
+    mCardOpacityVal.textContent = `${mEventCardOpacity.value}%`;
+    mEventCardColor.value = event.card_color || '#ffffff';
+    mEventTextColor.value = event.text_color || '#ffffff';
+
     deleteEventBtn.style.display = 'block';
   } else {
     // Create mode
@@ -625,6 +679,12 @@ function openEventSheet(event = null, prefillDate = null) {
     
     mUnitCheckboxes.forEach(cb => cb.checked = true);
     mEventTemplateInput.value = t('defaultTemplate');
+
+    mEventCardEffect.value = 'glass';
+    mEventCardOpacity.value = 5;
+    mCardOpacityVal.textContent = '5%';
+    mEventCardColor.value = '#ffffff';
+    mEventTextColor.value = '#ffffff';
   }
   
   toggleAllDayFields();
@@ -748,7 +808,11 @@ async function handleFormSubmit(e) {
     bg_opacity: parseFloat((mEventBgOpacity.value / 100).toFixed(2)),
     bg_color: mEventBgColor.value,
     display_units: displayUnits,
-    template: mEventTemplateInput.value
+    template: mEventTemplateInput.value,
+    card_effect: mEventCardEffect.value,
+    card_color: mEventCardColor.value,
+    card_opacity: parseFloat((mEventCardOpacity.value / 100).toFixed(2)),
+    text_color: mEventTextColor.value
   };
 
   try {

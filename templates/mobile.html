@@ -191,6 +191,37 @@
             </div>
           </div>
 
+          <!-- Card Specific Styling (Opened Central Card) -->
+          <div class="m-form-row">
+            <div class="form-group">
+              <label for="m-event-card-effect" data-i18n="cardEffect">卡片效果</label>
+              <select id="m-event-card-effect">
+                <option value="glass" data-i18n="effectGlass">毛玻璃</option>
+                <option value="solid" data-i18n="effectSolid">實體填充</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="m-event-card-opacity" data-i18n="cardOpacity">卡片透明度</label>
+              <div class="m-range-row">
+                <input type="range" id="m-event-card-opacity" min="0" max="100" value="5">
+                <span id="m-card-opacity-val">5%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="m-form-row">
+            <div class="form-group">
+              <label for="m-event-card-color" data-i18n="cardColor">卡片顏色</label>
+              <input type="color" id="m-event-card-color" value="#ffffff" style="padding: 0; width: 100%; height: 44px; border-radius: 8px;">
+            </div>
+            
+            <div class="form-group">
+              <label for="m-event-text-color" data-i18n="textColor">字體顏色</label>
+              <input type="color" id="m-event-text-color" value="#ffffff" style="padding: 0; width: 100%; height: 44px; border-radius: 8px;">
+            </div>
+          </div>
+
           <!-- Time Units -->
           <div class="form-group">
             <label data-i18n="displayUnits">時間單位</label>

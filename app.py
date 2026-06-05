@@ -184,6 +184,10 @@ def save_event():
     existing_event['bg_color'] = data.get('bg_color', '#1e1e2e')
     existing_event['display_units'] = data.get('display_units', ['y', 'd', 'h', 'm', 's'])
     existing_event['template'] = data.get('template', '[title] 还有 [d] 天')
+    existing_event['card_effect'] = data.get('card_effect', 'glass')
+    existing_event['card_color'] = data.get('card_color', '#ffffff')
+    existing_event['card_opacity'] = float(data.get('card_opacity', 0.05))
+    existing_event['text_color'] = data.get('text_color', '#ffffff')
 
     save_events(events)
     return jsonify(existing_event)

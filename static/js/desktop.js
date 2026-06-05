@@ -49,6 +49,14 @@ const eventTemplateInput = document.getElementById('event-template-input');
 const resetTemplateBtn = document.getElementById('reset-template-btn');
 const tagButtons = document.querySelectorAll('.tag-btn:not(#reset-template-btn)');
 
+const eventCardEffect = document.getElementById('event-card-effect');
+const eventCardOpacity = document.getElementById('event-card-opacity');
+const cardOpacityVal = document.getElementById('card-opacity-val');
+const eventCardColor = document.getElementById('event-card-color');
+const cardColorHexVal = document.getElementById('card-color-hex-val');
+const eventTextColor = document.getElementById('event-text-color');
+const textColorHexVal = document.getElementById('text-color-hex-val');
+
 const eventsContainer = document.getElementById('events-container');
 const emptyState = document.getElementById('empty-state');
 const toastContainer = document.getElementById('toast-container');
@@ -82,6 +90,17 @@ function init() {
     if (e.target === previewOverlay) {
       closePreview();
     }
+  });
+
+  // Card Opacity, Color & Text Color sliders
+  eventCardOpacity.addEventListener('input', (e) => {
+    cardOpacityVal.textContent = `${e.target.value}%`;
+  });
+  eventCardColor.addEventListener('input', (e) => {
+    cardColorHexVal.textContent = e.target.value.toUpperCase();
+  });
+  eventTextColor.addEventListener('input', (e) => {
+    textColorHexVal.textContent = e.target.value.toUpperCase();
   });
 
   // All day toggle details
@@ -513,6 +532,42 @@ function openPreview(event) {
   }
   previewOverlayLayer.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
   
+  // Centered card styles (Glass or Solid overlay + font color)
+  const previewContentBox = document.querySelector('.preview-content-box');
+  const cardHex = event.card_color || '#ffffff';
+  const cardAlpha = event.card_opacity !== undefined ? event.card_opacity : 0.05;
+  
+  function getRgba(hex, alpha) {
+    let red = 255, green = 255, blue = 255;
+    if (hex.startsWith('#')) {
+      const cleanHex = hex.substring(1);
+      if (cleanHex.length === 3) {
+        red = parseInt(cleanHex[0] + cleanHex[0], 16);
+        green = parseInt(cleanHex[1] + cleanHex[1], 16);
+        blue = parseInt(cleanHex[2] + cleanHex[2], 16);
+      } else if (cleanHex.length === 6) {
+        red = parseInt(cleanHex.substring(0, 2), 16);
+        green = parseInt(cleanHex.substring(2, 4), 16);
+        blue = parseInt(cleanHex.substring(4, 6), 16);
+      }
+    }
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+  }
+
+  previewContentBox.style.backgroundColor = getRgba(cardHex, cardAlpha);
+  if (event.card_effect === 'solid') {
+    previewContentBox.style.backdropFilter = 'none';
+    previewContentBox.style.webkitBackdropFilter = 'none';
+  } else {
+    previewContentBox.style.backdropFilter = 'blur(25px)';
+    previewContentBox.style.webkitBackdropFilter = 'blur(25px)';
+  }
+
+  // Apply custom text colors
+  const txtColor = event.text_color || '#ffffff';
+  previewEventTitle.style.color = txtColor;
+  previewEventCountdown.style.color = txtColor;
+
   previewOverlay.classList.add('open');
 }
 
@@ -595,6 +650,15 @@ function openModal(event = null, prefillDate = null) {
     });
     
     eventTemplateInput.value = event.template || t('defaultTemplate');
+
+    eventCardEffect.value = event.card_effect || 'glass';
+    eventCardOpacity.value = event.card_opacity !== undefined ? Math.round(event.card_opacity * 100) : 5;
+    cardOpacityVal.textContent = `${eventCardOpacity.value}%`;
+    eventCardColor.value = event.card_color || '#ffffff';
+    cardColorHexVal.textContent = eventCardColor.value.toUpperCase();
+    eventTextColor.value = event.text_color || '#ffffff';
+    textColorHexVal.textContent = eventTextColor.value.toUpperCase();
+
     deleteEventModalBtn.style.display = 'block';
   } else {
     // Create mode
@@ -628,6 +692,14 @@ function openModal(event = null, prefillDate = null) {
     
     unitCheckboxes.forEach(cb => cb.checked = true);
     eventTemplateInput.value = t('defaultTemplate');
+
+    eventCardEffect.value = 'glass';
+    eventCardOpacity.value = 5;
+    cardOpacityVal.textContent = '5%';
+    eventCardColor.value = '#ffffff';
+    cardColorHexVal.textContent = '#FFFFFF';
+    eventTextColor.value = '#ffffff';
+    textColorHexVal.textContent = '#FFFFFF';
   }
   
   toggleAllDayFields();
@@ -764,7 +836,11 @@ async function handleFormSubmit(e) {
     bg_opacity: parseFloat((eventBgOpacity.value / 100).toFixed(2)),
     bg_color: eventBgColor.value,
     display_units: displayUnits,
-    template: eventTemplateInput.value
+    template: eventTemplateInput.value,
+    card_effect: eventCardEffect.value,
+    card_color: eventCardColor.value,
+    card_opacity: parseFloat((eventCardOpacity.value / 100).toFixed(2)),
+    text_color: eventTextColor.value
   };
 
   try {
