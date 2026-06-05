@@ -122,5 +122,31 @@ class CalendarBackendTestCase(unittest.TestCase):
         self.assertEqual(len(events_list), 1)
         self.assertEqual(events_list[0]['id'], "valid123")
 
+    def test_poster_routes(self):
+        """Test the poster rendering page and api generation endpoint"""
+        tomorrow = datetime.now() + timedelta(days=1)
+        time_str = tomorrow.strftime('%Y-%m-%d %H:%M:%S')
+        event = {
+            "id": "test_poster_event_id",
+            "title": "Test Poster Event",
+            "time": time_str,
+            "is_all_day": False,
+            "countdown_enabled": True,
+            "card_effect": "glass",
+            "card_color": "#ffffff",
+            "card_opacity": 0.2
+        }
+        with open(EVENTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump([event], f)
+            
+        # Test poster page route
+        response = self.client.get('/poster/test_poster_event_id?lang=zh&format=desktop')
+        self.assertEqual(response.status_code, 200)
+        
+        # Test generate_poster API route
+        response = self.client.get('/api/generate_poster/test_poster_event_id?lang=zh&format=desktop')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content_type, "image/png")
+
 if __name__ == '__main__':
     unittest.main()

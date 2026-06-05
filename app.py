@@ -1,8 +1,11 @@
 import os
 import uuid
 import json
-from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, send_from_directory, redirect
+import urllib.request
+from datetime import datetime, timedelta, date
+from io import BytesIO
+from flask import Flask, request, jsonify, send_from_directory, redirect, send_file, render_template
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
@@ -242,6 +245,438 @@ def upload_file():
 
     return jsonify({"url": f"/uploads/{filename}"})
 
+FONT_DIR = os.path.join(DATA_DIR, 'fonts')
+MEDIUM_FONT_PATH = os.path.join(FONT_DIR, 'Outfit-Medium.ttf')
+BOLD_FONT_PATH = os.path.join(FONT_DIR, 'Outfit-Bold.ttf')
+
+def ensure_fonts():
+    os.makedirs(FONT_DIR, exist_ok=True)
+    medium_url = "https://raw.githubusercontent.com/Outfitio/Outfit-Fonts/main/fonts/ttf/Outfit-Medium.ttf"
+    bold_url = "https://raw.githubusercontent.com/Outfitio/Outfit-Fonts/main/fonts/ttf/Outfit-Bold.ttf"
+    
+    if not os.path.exists(MEDIUM_FONT_PATH):
+        try:
+            print("Downloading Outfit-Medium font...")
+            urllib.request.urlretrieve(medium_url, MEDIUM_FONT_PATH)
+        except Exception as e:
+            print(f"Error downloading medium font: {e}")
+            
+    if not os.path.exists(BOLD_FONT_PATH):
+        try:
+            print("Downloading Outfit-Bold font...")
+            urllib.request.urlretrieve(bold_url, BOLD_FONT_PATH)
+        except Exception as e:
+            print(f"Error downloading bold font: {e}")
+
+def load_font(is_bold, size):
+    font_path = BOLD_FONT_PATH if is_bold else MEDIUM_FONT_PATH
+    if os.path.exists(font_path):
+        try:
+            return ImageFont.truetype(font_path, size)
+        except Exception:
+            pass
+            
+    # Fallback to system fonts
+    system_fonts = [
+        "arial.ttf",
+        "msyh.ttc",  # Microsoft YaHei
+        "Calibri.ttf",
+        "Helvetica.ttc"
+    ]
+    for sys_font in system_fonts:
+        try:
+            return ImageFont.truetype(sys_font, size)
+        except Exception:
+            pass
+            
+    # Ultimate fallback
+    return ImageFont.load_default()
+
+def hex_to_rgb(hex_str):
+    hex_str = hex_str.lstrip('#')
+    if len(hex_str) == 3:
+        hex_str = ''.join([c*2 for c in hex_str])
+    if len(hex_str) == 6:
+        return int(hex_str[0:2], 16), int(hex_str[2:4], 16), int(hex_str[4:6], 16)
+    return 255, 255, 255
+
+def calculate_remaining_time_py(target_time_str, is_all_day, display_units):
+    now = datetime.now()
+    
+    if is_all_day:
+        parts = target_time_str.split('-')
+        target_date = datetime(int(parts[0]), int(parts[1]), int(parts[2]), 0, 0, 0)
+    else:
+        clean_str = target_time_str.replace('T', ' ')
+        for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d'):
+            try:
+                target_date = datetime.strptime(clean_str, fmt)
+                break
+            except ValueError:
+                pass
+        else:
+            target_date = datetime.now()
+
+    diff_td = target_date - now
+    diff_ms = diff_td.total_seconds() * 1000
+
+    status = 'future'
+    if is_all_day:
+        is_today = (now.year == target_date.year and 
+                    now.month == target_date.month and 
+                    now.day == target_date.day)
+        if is_today:
+            status = 'today'
+        elif diff_ms < 0:
+            status = 'past'
+    else:
+        is_same_day = (now.year == target_date.year and 
+                       now.month == target_date.month and 
+                       now.day == target_date.day)
+        if is_same_day and abs(diff_ms) < 60000: # within 1 minute
+            status = 'today'
+        elif diff_ms < 0:
+            status = 'past'
+
+    ordered_units = ['y', 'd', 'h', 'm', 's']
+    active_units = [u for u in ordered_units if u in display_units]
+    if not active_units:
+        active_units = ['d']
+
+    result = {
+        'y': 0,
+        'd': 0,
+        'h': 0,
+        'm': 0,
+        's': 0,
+        'status': status,
+        'totalDiffMs': diff_ms
+    }
+
+    has_time_units = 'h' in active_units or 'm' in active_units or 's' in active_units
+
+    if not has_time_units:
+        target_midnight = date(target_date.year, target_date.month, target_date.day)
+        now_midnight = date(now.year, now.month, now.day)
+        diff_days = (target_midnight - now_midnight).days
+        abs_days = abs(diff_days)
+
+        if 'y' in active_units and 'd' in active_units:
+            result['y'] = abs_days // 365
+            result['d'] = abs_days % 365
+        elif 'y' in active_units:
+            result['y'] = round(abs_days / 365)
+        else:
+            result['d'] = abs_days
+    else:
+        remaining_seconds = max(0, int(diff_ms / 1000))
+        if diff_ms < 0:
+            remaining_seconds = abs(int(diff_ms / 1000))
+
+        unit_seconds = {
+            'y': 365 * 24 * 60 * 60,
+            'd': 24 * 60 * 60,
+            'h': 60 * 60,
+            'm': 60,
+            's': 1
+        }
+
+        for i, unit in enumerate(active_units):
+            unit_sec = unit_seconds[unit]
+            if i == len(active_units) - 1:
+                result[unit] = remaining_seconds // unit_sec
+            else:
+                result[unit] = remaining_seconds // unit_sec
+                remaining_seconds = remaining_seconds % unit_sec
+
+    return result
+
+def parse_countdown_template_py(template, values):
+    if not template:
+        return ''
+    
+    result = ''
+    i = 0
+    while i < len(template):
+        char = template[i]
+        if char == '\\':
+            if i + 1 < len(template):
+                result += template[i + 1]
+                i += 2
+            else:
+                result += '\\'
+                i += 1
+        elif char == '[':
+            j = i + 1
+            found = False
+            while j < len(template):
+                if template[j] == '\\':
+                    j += 2
+                elif template[j] == ']':
+                    found = True
+                    break
+                else:
+                    j += 1
+            if found:
+                tag = template[i + 1:j]
+                if tag in values:
+                    result += str(values[tag])
+                else:
+                    result += '[' + tag + ']'
+                i = j + 1
+            else:
+                result += '['
+                i += 1
+        else:
+            result += char
+            i += 1
+    return result
+
+def get_countdown_string_py(event, lang):
+    lang_templates = {
+        'zh': {
+            'defaultTemplate': "[title] 還有 [d] 天",
+            'defaultTemplateToday': "[title] 就是今天！",
+            'defaultTemplatePast': "[title] 已經過去 [d] 天",
+        },
+        'en': {
+            'defaultTemplate': "[title] is in [d] days",
+            'defaultTemplateToday': "[title] is today!",
+            'defaultTemplatePast': "[title] passed [d] days ago",
+        },
+        'ja': {
+            'defaultTemplate': "[title] まであと [d] 日",
+            'defaultTemplateToday': "[title] は今日です！",
+            'defaultTemplatePast': "[title] は [d] 日前に経過しました",
+        }
+    }
+
+    t_dict = lang_templates.get(lang, lang_templates['en'])
+
+    if not event.get('countdown_enabled', True):
+        t_str = event.get('time', '')
+        if event.get('is_all_day', False):
+            return t_str
+        else:
+            return t_str.replace('T', ' ')
+
+    display_units = event.get('display_units', ['y', 'd', 'h', 'm', 's'])
+    time_data = calculate_remaining_time_py(event['time'], event.get('is_all_day', False), display_units)
+    
+    values = {
+        'title': event['title'],
+        'y': time_data['y'],
+        'd': time_data['d'],
+        'h': time_data['h'],
+        'm': time_data['m'],
+        's': time_data['s']
+    }
+
+    status = time_data['status']
+    if status == 'today':
+        return parse_countdown_template_py(t_dict['defaultTemplateToday'], values)
+    elif status == 'past':
+        return parse_countdown_template_py(t_dict['defaultTemplatePast'], values)
+    else:
+        user_template = event.get('template', '')
+        if not user_template:
+            user_template = t_dict['defaultTemplate']
+        return parse_countdown_template_py(user_template, values)
+
+@app.route('/poster/<event_id>')
+def poster_page(event_id):
+    events = load_events()
+    event = next((e for e in events if str(e['id']) == event_id), None)
+    if not event:
+        return "Event not found", 404
+        
+    lang = request.args.get('lang', 'zh')
+    format_type = request.args.get('format', 'desktop')
+    
+    texts = {
+        'zh': {
+            'title': '保存海報',
+            'back': '返回',
+            'tip_mobile': '長按上方圖片保存至相冊',
+            'tip_desktop': '右鍵點擊上方圖片選擇「另存為」保存'
+        },
+        'en': {
+            'title': 'Save Poster',
+            'back': 'Back',
+            'tip_mobile': 'Long press the image to save to your album',
+            'tip_desktop': 'Right click the image and select "Save Image As"'
+        },
+        'ja': {
+            'title': 'ポスターを保存',
+            'back': '戻る',
+            'tip_mobile': '画像を長押ししてアルバムに保存します',
+            'tip_desktop': '画像を右クリックして「名前を付けて保存」を選択します'
+        }
+    }
+    
+    selected_texts = texts.get(lang, texts['en'])
+    return render_template('poster.html', event_id=event_id, lang=lang, format=format_type, texts=selected_texts)
+
+@app.route('/api/generate_poster/<event_id>')
+def generate_poster(event_id):
+    ensure_fonts()
+    events = load_events()
+    event = next((e for e in events if str(e['id']) == event_id), None)
+    if not event:
+        return "Event not found", 404
+
+    lang = request.args.get('lang', 'zh')
+    format_type = request.args.get('format', 'desktop')
+
+    bg_image_url = event.get('bg_image')
+    img = None
+    w, h = 1920, 1080
+
+    if bg_image_url:
+        filename = bg_image_url.split('/')[-1]
+        local_path = os.path.join(UPLOAD_DIR, filename)
+        if os.path.exists(local_path):
+            try:
+                img = Image.open(local_path).convert('RGBA')
+                w, h = img.size
+                max_dim = 2000
+                if w > max_dim or h > max_dim:
+                    ratio = w / h
+                    if w > h:
+                        w = max_dim
+                        h = int(max_dim / ratio)
+                    else:
+                        h = max_dim
+                        w = int(max_dim * ratio)
+                    img = img.resize((w, h), Image.Resampling.LANCZOS)
+            except Exception as err:
+                print(f"Error loading background image in python: {err}")
+                img = None
+
+    if not img:
+        if format_type == 'mobile':
+            w, h = 1080, 1920
+        else:
+            w, h = 1920, 1080
+        img = Image.new('RGBA', (w, h), (30, 30, 46, 255))
+
+    overlay = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    draw_overlay = ImageDraw.Draw(overlay)
+    bg_color_hex = event.get('bg_color', '#1e1e2e')
+    bg_opacity = event.get('bg_opacity', 1.0)
+    r, g, b = hex_to_rgb(bg_color_hex)
+    alpha = int(bg_opacity * 255)
+    draw_overlay.rectangle([0, 0, w, h], fill=(r, g, b, alpha))
+    img = Image.alpha_composite(img, overlay)
+
+    is_landscape = w > h
+    card_w = int(w * 0.42) if is_landscape else int(w * 0.80)
+    base_card_w = 500 if is_landscape else 310
+    scale = card_w / base_card_w
+
+    title_text = event['title']
+    countdown_text = get_countdown_string_py(event, lang)
+
+    title_size = int((24 if is_landscape else 20) * scale)
+    countdown_size = int((48 if is_landscape else 35) * scale)
+    font_title = load_font(is_bold=False, size=title_size)
+    font_countdown = load_font(is_bold=True, size=countdown_size)
+
+    tb_title = font_title.getbbox(title_text)
+    title_w = tb_title[2] - tb_title[0]
+    title_h = tb_title[3] - tb_title[1]
+
+    tb_countdown = font_countdown.getbbox(countdown_text)
+    countdown_w = tb_countdown[2] - tb_countdown[0]
+    countdown_h = tb_countdown[3] - tb_countdown[1]
+
+    padding_y = int((60 if is_landscape else 50) * scale)
+    space_y = int((24 if is_landscape else 20) * scale)
+    card_h = padding_y * 2 + title_h + space_y + countdown_h
+
+    card_x1 = (w - card_w) // 2
+    card_y1 = (h - card_h) // 2
+    card_x2 = card_x1 + card_w
+    card_y2 = card_y1 + card_h
+
+    # Apply Gaussian Blur under the card region if card_effect is 'glass'
+    card_radius = int((24 if is_landscape else 20) * scale)
+    if event.get('card_effect', 'glass') == 'glass':
+        x1 = max(0, card_x1)
+        y1 = max(0, card_y1)
+        x2 = min(w, card_x2)
+        y2 = min(h, card_y2)
+        if x2 > x1 and y2 > y1:
+            card_crop = img.crop((x1, y1, x2, y2))
+            blur_radius = max(2, int(25 * scale))
+            blurred_crop = card_crop.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+            
+            mask_w = x2 - x1
+            mask_h = y2 - y1
+            mask = Image.new('L', (mask_w, mask_h), 0)
+            draw_mask = ImageDraw.Draw(mask)
+            
+            rx1 = card_x1 - x1
+            ry1 = card_y1 - y1
+            rx2 = card_x2 - x1
+            ry2 = card_y2 - y1
+            
+            draw_mask.rounded_rectangle(
+                [rx1, ry1, rx2, ry2],
+                radius=card_radius,
+                fill=255
+            )
+            img.paste(blurred_crop, (x1, y1), mask)
+
+    card_layer = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    draw_card = ImageDraw.Draw(card_layer)
+    card_color_hex = event.get('card_color', '#ffffff')
+    card_opacity = event.get('card_opacity', 0.05)
+    cr, cg, cb = hex_to_rgb(card_color_hex)
+    card_alpha = int(card_opacity * 255)
+    border_width = max(1, int(1 * scale))
+
+    draw_card.rounded_rectangle(
+        [card_x1, card_y1, card_x2, card_y2],
+        radius=card_radius,
+        fill=(cr, cg, cb, card_alpha),
+        outline=(255, 255, 255, 30),
+        width=border_width
+    )
+    img = Image.alpha_composite(img, card_layer)
+
+    text_layer = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    draw_text = ImageDraw.Draw(text_layer)
+    text_color_hex = event.get('text_color', '#ffffff')
+    tr, tg, tb = hex_to_rgb(text_color_hex)
+
+    title_x = (w - title_w) // 2
+    title_y = card_y1 + padding_y
+    draw_text.text((title_x, title_y), title_text, fill=(tr, tg, tb, 255), font=font_title)
+
+    countdown_x = (w - countdown_w) // 2
+    countdown_y = title_y + title_h + space_y
+    draw_text.text((countdown_x, countdown_y), countdown_text, fill=(tr, tg, tb, 255), font=font_countdown)
+
+    img = Image.alpha_composite(img, text_layer)
+
+    img_io = BytesIO()
+    img.save(img_io, 'PNG')
+    img_io.seek(0)
+    
+    safe_title = "".join([c for c in event['title'] if c.isalnum() or c in (' ', '_', '-')]).rstrip()
+    safe_title = safe_title.replace(' ', '_')
+    if not safe_title:
+        safe_title = "event"
+
+    return send_file(
+        img_io,
+        mimetype='image/png',
+        as_attachment=False,
+        download_name=f"countdown-{safe_title}.png"
+    )
+
 if __name__ == '__main__':
     # Run server locally on port 5000
     app.run(host='127.0.0.1', port=5000, debug=True)
+
