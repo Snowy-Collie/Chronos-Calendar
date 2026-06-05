@@ -554,7 +554,7 @@ function openPreview(event) {
     return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
   }
 
-  previewContentBox.style.backgroundColor = getRgba(cardHex, cardAlpha);
+  previewContentBox.style.background = getRgba(cardHex, cardAlpha);
   if (event.card_effect === 'solid') {
     previewContentBox.style.backdropFilter = 'none';
     previewContentBox.style.webkitBackdropFilter = 'none';
@@ -581,7 +581,43 @@ function savePreviewAsPhoto() {
   if (!activePreviewEvent) return;
   
   const captureBox = document.getElementById('preview-capture-box');
+  const previewContentBox = document.querySelector('.preview-content-box');
   
+  // Cache original styles
+  const originalBackground = previewContentBox.style.background;
+  const originalBorder = previewContentBox.style.border;
+  
+  // Calculate temporary style for html2canvas (bumping opacity to display the card clearly without backdrop-filter)
+  const cardHex = activePreviewEvent.card_color || '#ffffff';
+  const cardAlpha = activePreviewEvent.card_opacity !== undefined ? activePreviewEvent.card_opacity : 0.05;
+  
+  function getRgba(hex, alpha) {
+    let red = 255, green = 255, blue = 255;
+    if (hex.startsWith('#')) {
+      const cleanHex = hex.substring(1);
+      if (cleanHex.length === 3) {
+        red = parseInt(cleanHex[0] + cleanHex[0], 16);
+        green = parseInt(cleanHex[1] + cleanHex[1], 16);
+        blue = parseInt(cleanHex[2] + cleanHex[2], 16);
+      } else if (cleanHex.length === 6) {
+        red = parseInt(cleanHex.substring(0, 2), 16);
+        green = parseInt(cleanHex.substring(2, 4), 16);
+        blue = parseInt(cleanHex.substring(4, 6), 16);
+      }
+    }
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+  }
+
+  if (activePreviewEvent.card_effect === 'glass') {
+    // Increase alpha to make the card shape visible
+    const captureAlpha = Math.max(0.25, cardAlpha * 2.0);
+    previewContentBox.style.background = getRgba(cardHex, captureAlpha);
+    previewContentBox.style.border = '1.5px solid rgba(255, 255, 255, 0.2)';
+  } else {
+    const captureAlpha = Math.max(0.3, cardAlpha);
+    previewContentBox.style.background = getRgba(cardHex, captureAlpha);
+  }
+
   // Notify user
   showToast("Rendering image, please wait...", 'success');
   
@@ -590,6 +626,10 @@ function savePreviewAsPhoto() {
     allowTaint: true,
     scale: 2 // Higher export resolution
   }).then(canvas => {
+    // Restore original styles immediately
+    previewContentBox.style.background = originalBackground;
+    previewContentBox.style.border = originalBorder;
+
     const dataUrl = canvas.toDataURL('image/png');
     const link = document.createElement('a');
     link.download = `countdown-${activePreviewEvent.title.replace(/\s+/g, '_')}.png`;
@@ -597,6 +637,10 @@ function savePreviewAsPhoto() {
     link.click();
     showToast(t('saveSuccess'), 'success');
   }).catch(err => {
+    // Restore original styles in case of error
+    previewContentBox.style.background = originalBackground;
+    previewContentBox.style.border = originalBorder;
+
     console.error("Canvas export failure:", err);
     showToast(t('uploadError'), 'error');
   });
