@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="title">時光倒數曆</title>
+  <link rel="stylesheet" href="/static/css/shared.css">
+  <link rel="stylesheet" href="/static/css/desktop.css">
+</head>
+<body>
+  <!-- Background Ambient Glows -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="glass">
+      <div class="logo-area">
+        <svg class="logo-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+          <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path>
+        </svg>
+        <div>
+          <h1 data-i18n="title">時光倒數曆</h1>
+          <p class="subtitle" data-i18n="subtitle">記錄生活中的重要時刻</p>
+        </div>
+      </div>
+      
+      <div class="header-actions">
+        <!-- Language Switcher -->
+        <div class="lang-switcher glass-card">
+          <button class="lang-btn" data-lang="zh">繁中</button>
+          <button class="lang-btn" data-lang="en">EN</button>
+          <button class="lang-btn" data-lang="ja">日本語</button>
+        </div>
+        
+        <!-- Add Event Button -->
+        <button id="add-event-btn" class="btn-primary">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 6px; vertical-align: middle;">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span data-i18n="addEvent">添加事件</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-layout">
+      <!-- Left Pane: Interactive Monthly Calendar -->
+      <section class="left-pane glass">
+        <div class="calendar-header">
+          <button id="prev-month-btn" class="btn-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"></path></svg>
+          </button>
+          <h2 id="calendar-month-year" class="month-title">June 2026</h2>
+          <button id="next-month-btn" class="btn-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg>
+          </button>
+        </div>
+        
+        <div class="calendar-grid-container">
+          <div class="calendar-weekdays" id="calendar-weekdays">
+            <!-- Populated by JS -->
+          </div>
+          <div class="calendar-days" id="calendar-days">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <div class="cleanup-notice" data-i18n="autoCleanNotice">
+          * 過去超過 16 天的事件將會被自動清理
+        </div>
+      </section>
+
+      <!-- Right Pane: Countdowns / Event List -->
+      <section class="right-pane">
+        <div class="section-title">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <span data-i18n="settings">倒數設置</span>
+        </div>
+        
+        <div id="events-container" class="events-feed">
+          <!-- Event Cards populated by JS -->
+        </div>
+        
+        <!-- Empty State -->
+        <div id="empty-state" class="empty-state glass">
+          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--text-muted)" stroke-width="1.5">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+            <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"></path>
+          </svg>
+          <p data-i18n="noEvents">暫無事件，快去創建一個吧！</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Add/Edit Event Modal -->
+  <div id="event-modal" class="modal-overlay">
+    <div class="modal-content glass animate-slide-up">
+      <div class="modal-header">
+        <h3 id="modal-title" data-i18n="addEvent">添加事件</h3>
+        <button id="close-modal-btn" class="btn-close">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      
+      <form id="event-form" class="modal-form">
+        <input type="hidden" id="event-id">
+        
+        <!-- Title Input -->
+        <div class="form-group">
+          <label for="event-title-input" data-i18n="eventTitle">事件名稱</label>
+          <input type="text" id="event-title-input" required data-i18n-placeholder="eventTitlePlaceholder" placeholder="例如：我的生日">
+        </div>
+
+        <!-- Date Time Input -->
+        <div class="form-group">
+          <label for="event-time-input" data-i18n="eventTime">日期與時間</label>
+          <div class="datetime-row">
+            <input type="date" id="event-date-input" required>
+            <input type="time" id="event-time-input" step="1"> <!-- h m s input -->
+          </div>
+          <label class="checkbox-container">
+            <input type="checkbox" id="event-allday-checkbox">
+            <span class="checkmark"></span>
+            <span data-i18n="allDay">全天事件</span>
+          </label>
+        </div>
+
+        <!-- Countdown Enabled -->
+        <div class="form-group">
+          <label class="checkbox-container">
+            <input type="checkbox" id="event-countdown-checkbox" checked>
+            <span class="checkmark"></span>
+            <span data-i18n="countdownToggle">開啟倒數計時</span>
+          </label>
+        </div>
+
+        <!-- Countdown Settings Group (collapsible depending on toggle) -->
+        <div id="countdown-settings-section" class="settings-sub-section">
+          <!-- Background Image Upload -->
+          <div class="form-group">
+            <label data-i18n="bgImage">背景圖片</label>
+            <div class="upload-zone" id="upload-zone">
+              <input type="file" id="bg-file-input" accept="image/*" style="display: none;">
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="var(--primary)" stroke-width="2" style="margin-bottom: 8px;">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <p class="upload-text" data-i18n="uploadPlaceholder">拖拽圖片至此，或點擊上傳</p>
+              <div id="upload-preview" class="upload-preview" style="display: none;">
+                <img id="preview-img" src="" alt="preview">
+                <button type="button" id="remove-bg-btn" class="btn-remove-bg">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </div>
+            </div>
+            <input type="hidden" id="event-bg-image">
+          </div>
+
+          <!-- Opacity and Color Overlay -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="event-bg-effect" data-i18n="bgEffect">背景效果</label>
+              <select id="event-bg-effect">
+                <option value="normal" data-i18n="effectNormal">正常</option>
+                <option value="glass" data-i18n="effectGlass">毛玻璃</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="event-bg-opacity" data-i18n="opacity">背景透明度</label>
+              <div class="range-container">
+                <input type="range" id="event-bg-opacity" min="0" max="100" value="100">
+                <span id="opacity-val">100%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="event-bg-color" data-i18n="bgColor">背景顏色 overlay</label>
+            <div class="color-picker-wrapper">
+              <input type="color" id="event-bg-color" value="#1e1e2e">
+              <span id="color-hex-val">#1e1e2e</span>
+            </div>
+          </div>
+
+          <!-- Display Units -->
+          <div class="form-group">
+            <label data-i18n="displayUnits">顯示時間單位</label>
+            <div class="units-grid">
+              <label class="checkbox-container">
+                <input type="checkbox" class="unit-checkbox" value="y" checked>
+                <span class="checkmark"></span>
+                <span data-i18n="yearsShort">年</span>
+              </label>
+              <label class="checkbox-container">
+                <input type="checkbox" class="unit-checkbox" value="d" checked>
+                <span class="checkmark"></span>
+                <span data-i18n="daysShort">天</span>
+              </label>
+              <label class="checkbox-container">
+                <input type="checkbox" class="unit-checkbox" value="h" checked>
+                <span class="checkmark"></span>
+                <span data-i18n="hoursShort">時</span>
+              </label>
+              <label class="checkbox-container">
+                <input type="checkbox" class="unit-checkbox" value="m" checked>
+                <span class="checkmark"></span>
+                <span data-i18n="minutesShort">分</span>
+              </label>
+              <label class="checkbox-container">
+                <input type="checkbox" class="unit-checkbox" value="s" checked>
+                <span class="checkmark"></span>
+                <span data-i18n="secondsShort">秒</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Template Format -->
+          <div class="form-group">
+            <label for="event-template-input" data-i18n="displayTemplate">自定義顯示內容</label>
+            <input type="text" id="event-template-input" required value="[title] 還有 [d] 天">
+            <div class="template-tags">
+              <button type="button" class="tag-btn" data-tag="[title]">[title]</button>
+              <button type="button" class="tag-btn" data-tag="[y]">[y]</button>
+              <button type="button" class="tag-btn" data-tag="[d]">[d]</button>
+              <button type="button" class="tag-btn" data-tag="[h]">[h]</button>
+              <button type="button" class="tag-btn" data-tag="[m]">[m]</button>
+              <button type="button" class="tag-btn" data-tag="[s]">[s]</button>
+              <button type="button" class="tag-btn" id="reset-template-btn">Reset</button>
+            </div>
+            <p class="field-hint" data-i18n="templateHint">
+              提示：使用 [y][d][h][m][s] 作為時間占位符，[title] 為事件名。使用 \ 可轉義括號。
+            </p>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="form-actions">
+          <button type="button" id="delete-event-modal-btn" class="btn-danger" style="display: none;" data-i18n="delete">刪除</button>
+          <div style="margin-left: auto; display: flex; gap: 12px;">
+            <button type="button" id="cancel-modal-btn" class="btn-secondary" data-i18n="cancel">取消</button>
+            <button type="submit" class="btn-primary" data-i18n="save">保存</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Alert System -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Shared JS -->
+  <script src="/static/js/countdown_parser.js"></script>
+  <script src="/static/js/i18n.js"></script>
+  <!-- Desktop JS -->
+  <script src="/static/js/desktop.js"></script>
+</body>
+</html>
