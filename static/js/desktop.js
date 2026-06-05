@@ -586,6 +586,8 @@ function savePreviewAsPhoto() {
   // Cache original styles
   const originalBackground = previewContentBox.style.background;
   const originalBorder = previewContentBox.style.border;
+  const originalBackdropFilter = previewContentBox.style.backdropFilter;
+  const originalWebkitBackdropFilter = previewContentBox.style.webkitBackdropFilter;
   
   // Calculate temporary style for html2canvas (bumping opacity to display the card clearly without backdrop-filter)
   const cardHex = activePreviewEvent.card_color || '#ffffff';
@@ -608,14 +610,19 @@ function savePreviewAsPhoto() {
     return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
   }
 
+  // Temporarily disable backdrop filter for html2canvas compatibility
+  previewContentBox.style.backdropFilter = 'none';
+  previewContentBox.style.webkitBackdropFilter = 'none';
+
   if (activePreviewEvent.card_effect === 'glass') {
     // Increase alpha to make the card shape visible
     const captureAlpha = Math.max(0.25, cardAlpha * 2.0);
     previewContentBox.style.background = getRgba(cardHex, captureAlpha);
-    previewContentBox.style.border = '1.5px solid rgba(255, 255, 255, 0.2)';
+    previewContentBox.style.border = '1.5px solid rgba(255, 255, 255, 0.25)';
   } else {
     const captureAlpha = Math.max(0.3, cardAlpha);
     previewContentBox.style.background = getRgba(cardHex, captureAlpha);
+    previewContentBox.style.border = '1px solid rgba(255, 255, 255, 0.1)';
   }
 
   // Notify user
@@ -624,11 +631,21 @@ function savePreviewAsPhoto() {
   html2canvas(captureBox, {
     useCORS: true,
     allowTaint: true,
-    scale: 2 // Higher export resolution
+    scale: 2, // Higher export resolution
+    scrollX: 0,
+    scrollY: 0,
+    width: captureBox.clientWidth,
+    height: captureBox.clientHeight,
+    windowWidth: captureBox.clientWidth,
+    windowHeight: captureBox.clientHeight,
+    x: 0,
+    y: 0
   }).then(canvas => {
     // Restore original styles immediately
     previewContentBox.style.background = originalBackground;
     previewContentBox.style.border = originalBorder;
+    previewContentBox.style.backdropFilter = originalBackdropFilter;
+    previewContentBox.style.webkitBackdropFilter = originalWebkitBackdropFilter;
 
     const dataUrl = canvas.toDataURL('image/png');
     const link = document.createElement('a');
@@ -640,6 +657,8 @@ function savePreviewAsPhoto() {
     // Restore original styles in case of error
     previewContentBox.style.background = originalBackground;
     previewContentBox.style.border = originalBorder;
+    previewContentBox.style.backdropFilter = originalBackdropFilter;
+    previewContentBox.style.webkitBackdropFilter = originalWebkitBackdropFilter;
 
     console.error("Canvas export failure:", err);
     showToast(t('uploadError'), 'error');
