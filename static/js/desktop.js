@@ -7,6 +7,7 @@ let currentYear = new Date().getFullYear();
 let currentMonth = new Date().getMonth(); // 0-11
 let selectedDateStr = null; // YYYY-MM-DD
 let activeEditEvent = null; // Event object being edited, null for create
+let activePreviewEvent = null; // Event object currently previewed
 let countdownInterval = null;
 
 // DOM Elements
@@ -52,6 +53,14 @@ const eventsContainer = document.getElementById('events-container');
 const emptyState = document.getElementById('empty-state');
 const toastContainer = document.getElementById('toast-container');
 
+const previewOverlay = document.getElementById('preview-overlay');
+const closePreviewBtn = document.getElementById('close-preview-btn');
+const savePhotoBtn = document.getElementById('save-photo-btn');
+const previewEventTitle = document.getElementById('preview-event-title');
+const previewEventCountdown = document.getElementById('preview-event-countdown');
+const previewBgLayer = document.getElementById('preview-bg-layer');
+const previewOverlayLayer = document.getElementById('preview-overlay-layer');
+
 // Load initial data
 document.addEventListener('DOMContentLoaded', () => {
   init();
@@ -66,6 +75,14 @@ function init() {
   cancelModalBtn.addEventListener('click', closeModal);
   deleteEventModalBtn.addEventListener('click', deleteActiveEvent);
   eventForm.addEventListener('submit', handleFormSubmit);
+
+  closePreviewBtn.addEventListener('click', closePreview);
+  savePhotoBtn.addEventListener('click', savePreviewAsPhoto);
+  previewOverlay.addEventListener('click', (e) => {
+    if (e.target === previewOverlay) {
+      closePreview();
+    }
+  });
 
   // All day toggle details
   eventAlldayCheckbox.addEventListener('change', toggleAllDayFields);
@@ -395,8 +412,15 @@ function renderEventsFeed() {
 
     card.appendChild(actions);
     
+    // Add click to open magnification preview
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.event-card-actions')) return;
+      openPreview(event);
+    });
+
     // Add double-click to edit
-    card.addEventListener('dblclick', () => {
+    card.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
       openModal(event);
     });
 
@@ -441,6 +465,85 @@ function updateCountdowns() {
     if (el) {
       el.textContent = getCountdownString(event);
     }
+  });
+
+  if (activePreviewEvent) {
+    if (previewEventCountdown) {
+      previewEventCountdown.textContent = getCountdownString(activePreviewEvent);
+    }
+  }
+}
+
+// Open Fullscreen Preview Poster
+function openPreview(event) {
+  activePreviewEvent = event;
+  
+  previewEventTitle.textContent = event.title;
+  previewEventCountdown.textContent = getCountdownString(event);
+  
+  if (event.bg_image) {
+    previewBgLayer.style.backgroundImage = `url(${event.bg_image})`;
+  } else {
+    previewBgLayer.style.backgroundImage = 'none';
+  }
+  
+  // Background blur scaling depending on effect
+  if (event.bg_effect === 'glass') {
+    previewBgLayer.style.filter = 'blur(10px) scale(1.05)';
+  } else {
+    previewBgLayer.style.filter = 'none';
+  }
+
+  // Parse color overlay
+  const colorHex = event.bg_color || '#1e1e2e';
+  const opacity = event.bg_opacity !== undefined ? event.bg_opacity : 1.0;
+  
+  let r = 30, g = 30, b = 46;
+  if (colorHex.startsWith('#')) {
+    const cleanHex = colorHex.substring(1);
+    if (cleanHex.length === 3) {
+      r = parseInt(cleanHex[0] + cleanHex[0], 16);
+      g = parseInt(cleanHex[1] + cleanHex[1], 16);
+      b = parseInt(cleanHex[2] + cleanHex[2], 16);
+    } else if (cleanHex.length === 6) {
+      r = parseInt(cleanHex.substring(0, 2), 16);
+      g = parseInt(cleanHex.substring(2, 4), 16);
+      b = parseInt(cleanHex.substring(4, 6), 16);
+    }
+  }
+  previewOverlayLayer.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  
+  previewOverlay.classList.add('open');
+}
+
+function closePreview() {
+  previewOverlay.classList.remove('open');
+  activePreviewEvent = null;
+}
+
+// Save Fullscreen Preview Box as Photo
+function savePreviewAsPhoto() {
+  if (!activePreviewEvent) return;
+  
+  const captureBox = document.getElementById('preview-capture-box');
+  
+  // Notify user
+  showToast("Rendering image, please wait...", 'success');
+  
+  html2canvas(captureBox, {
+    useCORS: true,
+    allowTaint: true,
+    scale: 2 // Higher export resolution
+  }).then(canvas => {
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `countdown-${activePreviewEvent.title.replace(/\s+/g, '_')}.png`;
+    link.href = dataUrl;
+    link.click();
+    showToast(t('saveSuccess'), 'success');
+  }).catch(err => {
+    console.error("Canvas export failure:", err);
+    showToast(t('uploadError'), 'error');
   });
 }
 

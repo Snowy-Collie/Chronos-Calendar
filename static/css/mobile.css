@@ -544,3 +544,90 @@ body {
   from { transform: translateY(-20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+/* Mobile Preview Overlay Styling */
+.m-preview-capture-box {
+  width: 100vw;
+  height: 100vh;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  z-index: 1005;
+}
+
+.m-preview-bg-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: 1;
+}
+
+.m-preview-overlay-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+}
+
+.m-preview-content-box {
+  position: relative;
+  z-index: 3;
+  width: 310px;
+  max-width: 85%;
+  padding: 50px 24px;
+  text-align: center;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(25px) !important;
+  -webkit-backdrop-filter: blur(25px) !important;
+}
+
+.m-preview-event-title {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 20px;
+  letter-spacing: 0.5px;
+}
+
+.m-preview-event-countdown {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.5);
+  letter-spacing: -0.5px;
+  line-height: 1.25;
+}
+
+.m-preview-actions {
+  position: fixed;
+  bottom: 30px;
+  left: 16px;
+  right: 16px;
+  z-index: 1020;
+  display: flex;
+  gap: 8px;
+  background: rgba(8, 8, 16, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 8px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sheet-overlay.open .m-preview-content-box {
+  animation: slideUp var(--transition-normal) forwards;
+}

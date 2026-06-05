@@ -7,6 +7,7 @@ let currentYear = new Date().getFullYear();
 let currentMonth = new Date().getMonth();
 let selectedDateStr = null;
 let activeEditEvent = null;
+let activePreviewEvent = null; // Event object currently previewed
 let countdownInterval = null;
 
 // DOM Elements
@@ -58,6 +59,15 @@ const mUnitCheckboxes = document.querySelectorAll('.m-unit-checkbox');
 const mEventTemplateInput = document.getElementById('m-event-template-input');
 const mResetTemplateBtn = document.getElementById('m-reset-template-btn');
 const mTagButtons = document.querySelectorAll('.m-tag-btn:not(#m-reset-template-btn)');
+
+const mPreviewOverlay = document.getElementById('m-preview-overlay');
+const mSavePhotoBtn = document.getElementById('m-save-photo-btn');
+const mPreviewEditBtn = document.getElementById('m-preview-edit-btn');
+const mClosePreviewBtn = document.getElementById('m-close-preview-btn');
+const mPreviewEventTitle = document.getElementById('m-preview-event-title');
+const mPreviewEventCountdown = document.getElementById('m-preview-event-countdown');
+const mPreviewBgLayer = document.getElementById('m-preview-bg-layer');
+const mPreviewOverlayLayer = document.getElementById('m-preview-overlay-layer');
 
 const mToastContainer = document.getElementById('m-toast-container');
 
@@ -118,6 +128,16 @@ function init() {
 
   mResetTemplateBtn.addEventListener('click', () => {
     mEventTemplateInput.value = t('defaultTemplate');
+  });
+
+  mClosePreviewBtn.addEventListener('click', closePreview);
+  mSavePhotoBtn.addEventListener('click', savePreviewAsPhoto);
+  mPreviewEditBtn.addEventListener('click', () => {
+    if (activePreviewEvent) {
+      const eToEdit = activePreviewEvent;
+      closePreview();
+      openEventSheet(eToEdit);
+    }
   });
 
   // Upload image events
@@ -409,9 +429,9 @@ function renderEventsFeed() {
     
     card.appendChild(content);
     
-    // Tap to edit on mobile (more organic than hover buttons)
+    // Tap to open preview poster on mobile (and let the user edit from there!)
     card.addEventListener('click', () => {
-      openEventSheet(event);
+      openPreview(event);
     });
 
     mobileEventsContainer.appendChild(card);
@@ -448,6 +468,83 @@ function updateCountdowns() {
     if (el) {
       el.textContent = getCountdownString(event);
     }
+  });
+
+  if (activePreviewEvent) {
+    if (mPreviewEventCountdown) {
+      mPreviewEventCountdown.textContent = getCountdownString(activePreviewEvent);
+    }
+  }
+}
+
+// Open Fullscreen Mobile Preview
+function openPreview(event) {
+  activePreviewEvent = event;
+  
+  mPreviewEventTitle.textContent = event.title;
+  mPreviewEventCountdown.textContent = getCountdownString(event);
+  
+  if (event.bg_image) {
+    mPreviewBgLayer.style.backgroundImage = `url(${event.bg_image})`;
+  } else {
+    mPreviewBgLayer.style.backgroundImage = 'none';
+  }
+  
+  // Background blur scaling depending on effect
+  if (event.bg_effect === 'glass') {
+    mPreviewBgLayer.style.filter = 'blur(8px) scale(1.05)';
+  } else {
+    mPreviewBgLayer.style.filter = 'none';
+  }
+
+  // Parse color overlay
+  const colorHex = event.bg_color || '#1e1e2e';
+  const opacity = event.bg_opacity !== undefined ? event.bg_opacity : 1.0;
+  
+  let r = 30, g = 30, b = 46;
+  if (colorHex.startsWith('#')) {
+    const cleanHex = colorHex.substring(1);
+    if (cleanHex.length === 3) {
+      r = parseInt(cleanHex[0] + cleanHex[0], 16);
+      g = parseInt(cleanHex[1] + cleanHex[1], 16);
+      b = parseInt(cleanHex[2] + cleanHex[2], 16);
+    } else if (cleanHex.length === 6) {
+      r = parseInt(cleanHex.substring(0, 2), 16);
+      g = parseInt(cleanHex.substring(2, 4), 16);
+      b = parseInt(cleanHex.substring(4, 6), 16);
+    }
+  }
+  mPreviewOverlayLayer.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  
+  openSheet(mPreviewOverlay);
+}
+
+function closePreview() {
+  closeSheet(mPreviewOverlay);
+}
+
+// Save Mobile Preview Box as Photo
+function savePreviewAsPhoto() {
+  if (!activePreviewEvent) return;
+  
+  const captureBox = document.getElementById('m-preview-capture-box');
+  
+  showToast("Saving image...", 'success');
+  
+  html2canvas(captureBox, {
+    useCORS: true,
+    allowTaint: true,
+    scale: 2 // High resolution export
+  }).then(canvas => {
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `countdown-${activePreviewEvent.title.replace(/\s+/g, '_')}.png`;
+    link.href = dataUrl;
+    link.click();
+    showToast(t('saveSuccess'), 'success');
+  }).catch(err => {
+    console.error("Canvas export failure:", err);
+    showToast(t('uploadError'), 'error');
   });
 }
 

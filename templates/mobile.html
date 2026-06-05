@@ -6,6 +6,7 @@
   <title data-i18n="title">時光倒數曆</title>
   <link rel="stylesheet" href="/static/css/shared.css">
   <link rel="stylesheet" href="/static/css/mobile.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
   <!-- Ambient Glows -->
@@ -248,6 +249,36 @@
           </div>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Fullscreen Mobile Preview Overlay -->
+  <div id="m-preview-overlay" class="sheet-overlay" style="justify-content: center; height: 100vh;">
+    <div id="m-preview-capture-box" class="m-preview-capture-box">
+      <div id="m-preview-bg-layer" class="m-preview-bg-layer"></div>
+      <div id="m-preview-overlay-layer" class="m-preview-overlay-layer"></div>
+      <div class="m-preview-content-box glass">
+        <h2 id="m-preview-event-title" class="m-preview-event-title">诞生日</h2>
+        <div id="m-preview-event-countdown" class="m-preview-event-countdown">还有 10 天</div>
+      </div>
+    </div>
+    
+    <div class="m-preview-actions">
+      <button id="m-save-photo-btn" class="btn-primary" style="flex: 1; justify-content: center; display: flex; align-items: center; gap: 6px;">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span>保存照片</span>
+      </button>
+      <button id="m-preview-edit-btn" class="btn-secondary" style="flex: 1; justify-content: center; display: flex; align-items: center; gap: 4px;">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82-.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <span data-i18n="editEvent">編輯設置</span>
+      </button>
+      <button id="m-close-preview-btn" class="btn-secondary" style="padding: 12px 16px;">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
     </div>
   </div>
 
