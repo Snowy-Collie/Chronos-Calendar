@@ -123,12 +123,12 @@ class CalendarBackendTestCase(unittest.TestCase):
         self.assertEqual(events_list[0]['id'], "valid123")
 
     def test_poster_routes(self):
-        """Test the poster rendering page and api generation endpoint"""
+        """Test the poster rendering page and api generation endpoint with long Chinese/Japanese text"""
         tomorrow = datetime.now() + timedelta(days=1)
         time_str = tomorrow.strftime('%Y-%m-%d %H:%M:%S')
         event = {
             "id": "test_poster_event_id",
-            "title": "Test Poster Event",
+            "title": "這是一個非常非常長的研究倒計時活動，用於測試卡片自動換行以及國語和日語字體支持情況。",
             "time": time_str,
             "is_all_day": False,
             "countdown_enabled": True,
@@ -139,12 +139,17 @@ class CalendarBackendTestCase(unittest.TestCase):
         with open(EVENTS_FILE, 'w', encoding='utf-8') as f:
             json.dump([event], f)
             
-        # Test poster page route
+        # Test poster page route in Chinese
         response = self.client.get('/poster/test_poster_event_id?lang=zh&format=desktop')
         self.assertEqual(response.status_code, 200)
         
-        # Test generate_poster API route
+        # Test generate_poster API route in Chinese (triggers JhengHei/YaHei CJK font and word-wrapping)
         response = self.client.get('/api/generate_poster/test_poster_event_id?lang=zh&format=desktop')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content_type, "image/png")
+
+        # Test generate_poster API route in Japanese (triggers Meiryo/MS Gothic CJK font and word-wrapping)
+        response = self.client.get('/api/generate_poster/test_poster_event_id?lang=ja&format=mobile')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content_type, "image/png")
 

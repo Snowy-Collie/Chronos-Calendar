@@ -268,29 +268,121 @@ def ensure_fonts():
         except Exception as e:
             print(f"Error downloading bold font: {e}")
 
-def load_font(is_bold, size):
+def load_font(lang, is_bold, size):
+    # If language is English, try Outfit first
+    if lang == 'en':
+        font_path = BOLD_FONT_PATH if is_bold else MEDIUM_FONT_PATH
+        if os.path.exists(font_path):
+            try:
+                return ImageFont.truetype(font_path, size)
+            except Exception:
+                pass
+
+    # For Chinese and Japanese, we need CJK support
+    cjk_fonts = []
+    if lang == 'ja':
+        cjk_fonts = [
+            "meiryo.ttc",     # Meiryo (Japanese)
+            "msgothic.ttc",   # MS Gothic (Japanese)
+            "yugoth.ttc",     # Yu Gothic (Japanese)
+            "msyh.ttc"        # Microsoft YaHei
+        ]
+    else:  # 'zh' (Traditional Chinese, etc.)
+        cjk_fonts = [
+            "msjh.ttc",       # Microsoft JhengHei (Traditional Chinese)
+            "msyh.ttc",       # Microsoft YaHei (Chinese)
+            "simsun.ttc"      # SimSun
+        ]
+        
+    fallback_list = cjk_fonts + ["arial.ttf", "msyh.ttc", "Calibri.ttf", "Helvetica.ttc"]
+    
+    for sys_font in fallback_list:
+        try:
+            return ImageFont.truetype(sys_font, size)
+        except Exception:
+            pass
+            
+    # Try Outfit as fallback
     font_path = BOLD_FONT_PATH if is_bold else MEDIUM_FONT_PATH
     if os.path.exists(font_path):
         try:
             return ImageFont.truetype(font_path, size)
         except Exception:
             pass
-            
-    # Fallback to system fonts
-    system_fonts = [
-        "arial.ttf",
-        "msyh.ttc",  # Microsoft YaHei
-        "Calibri.ttf",
-        "Helvetica.ttc"
-    ]
-    for sys_font in system_fonts:
-        try:
-            return ImageFont.truetype(sys_font, size)
-        except Exception:
-            pass
-            
-    # Ultimate fallback
+
     return ImageFont.load_default()
+
+def wrap_text(text, font, max_width):
+    if not text:
+        return []
+        
+    lines = []
+    paragraphs = text.split('\n')
+    
+    for paragraph in paragraphs:
+        if not paragraph:
+            lines.append("")
+            continue
+            
+        tokens = []
+        current_token = ""
+        
+        for char in paragraph:
+            # Check for CJK character ranges
+            is_cjk = (0x3000 <= ord(char) <= 0x9FFF) or (0xFF00 <= ord(char) <= 0xFFEF)
+            
+            if is_cjk:
+                if current_token:
+                    tokens.append(current_token)
+                    current_token = ""
+                tokens.append(char)
+            else:
+                if char == ' ':
+                    current_token += char
+                else:
+                    if current_token and current_token[-1] == ' ':
+                        tokens.append(current_token)
+                        current_token = char
+                    else:
+                        current_token += char
+                        
+        if current_token:
+            tokens.append(current_token)
+            
+        current_line = ""
+        for token in tokens:
+            test_line = current_line + token
+            bbox = font.getbbox(test_line)
+            w = bbox[2] - bbox[0]
+            
+            if w <= max_width:
+                current_line = test_line
+            else:
+                if not current_line:
+                    lines.append(token)
+                    current_line = ""
+                else:
+                    lines.append(current_line.rstrip())
+                    test_bbox = font.getbbox(token)
+                    token_w = test_bbox[2] - test_bbox[0]
+                    if token_w > max_width:
+                        sub_line = ""
+                        for c in token:
+                            test_sub = sub_line + c
+                            sub_w = font.getbbox(test_sub)[2] - font.getbbox(test_sub)[0]
+                            if sub_w <= max_width:
+                                sub_line = test_sub
+                            else:
+                                lines.append(sub_line)
+                                sub_line = c
+                        current_line = sub_line
+                    else:
+                        current_line = token
+                        
+        if current_line:
+            lines.append(current_line.rstrip())
+            
+    return lines
 
 def hex_to_rgb(hex_str):
     hex_str = hex_str.lstrip('#')
@@ -579,20 +671,40 @@ def generate_poster(event_id):
 
     title_size = int((24 if is_landscape else 20) * scale)
     countdown_size = int((48 if is_landscape else 35) * scale)
-    font_title = load_font(is_bold=False, size=title_size)
-    font_countdown = load_font(is_bold=True, size=countdown_size)
+    font_title = load_font(lang, is_bold=False, size=title_size)
+    font_countdown = load_font(lang, is_bold=True, size=countdown_size)
 
-    tb_title = font_title.getbbox(title_text)
-    title_w = tb_title[2] - tb_title[0]
-    title_h = tb_title[3] - tb_title[1]
-
-    tb_countdown = font_countdown.getbbox(countdown_text)
-    countdown_w = tb_countdown[2] - tb_countdown[0]
-    countdown_h = tb_countdown[3] - tb_countdown[1]
-
+    # Calculate padding and text widths
     padding_y = int((60 if is_landscape else 50) * scale)
+    padding_x = int((48 if is_landscape else 24) * scale)
+    max_text_w = card_w - padding_x * 2
+
+    # Wrap title and countdown text
+    title_lines = wrap_text(title_text, font_title, max_text_w)
+    countdown_lines = wrap_text(countdown_text, font_countdown, max_text_w)
+
+    line_spacing = int(4 * scale)
+
+    # Calculate title height
+    title_line_h = 0
+    for line in title_lines:
+        bbox = font_title.getbbox(line if line else "Tg")
+        h_line = bbox[3] - bbox[1]
+        if h_line > title_line_h:
+            title_line_h = h_line
+    total_title_h = len(title_lines) * title_line_h + (len(title_lines) - 1) * line_spacing if title_lines else 0
+
+    # Calculate countdown height
+    countdown_line_h = 0
+    for line in countdown_lines:
+        bbox = font_countdown.getbbox(line if line else "Tg")
+        h_line = bbox[3] - bbox[1]
+        if h_line > countdown_line_h:
+            countdown_line_h = h_line
+    total_countdown_h = len(countdown_lines) * countdown_line_h + (len(countdown_lines) - 1) * line_spacing if countdown_lines else 0
+
     space_y = int((24 if is_landscape else 20) * scale)
-    card_h = padding_y * 2 + title_h + space_y + countdown_h
+    card_h = padding_y * 2 + total_title_h + space_y + total_countdown_h
 
     card_x1 = (w - card_w) // 2
     card_y1 = (h - card_h) // 2
@@ -650,13 +762,23 @@ def generate_poster(event_id):
     text_color_hex = event.get('text_color', '#ffffff')
     tr, tg, tb = hex_to_rgb(text_color_hex)
 
-    title_x = (w - title_w) // 2
-    title_y = card_y1 + padding_y
-    draw_text.text((title_x, title_y), title_text, fill=(tr, tg, tb, 255), font=font_title)
+    # Draw title lines
+    current_y = card_y1 + padding_y
+    for line in title_lines:
+        line_bbox = font_title.getbbox(line)
+        line_w = line_bbox[2] - line_bbox[0]
+        line_x = (w - line_w) // 2
+        draw_text.text((line_x, current_y), line, fill=(tr, tg, tb, 255), font=font_title)
+        current_y += title_line_h + line_spacing
 
-    countdown_x = (w - countdown_w) // 2
-    countdown_y = title_y + title_h + space_y
-    draw_text.text((countdown_x, countdown_y), countdown_text, fill=(tr, tg, tb, 255), font=font_countdown)
+    # Draw countdown lines
+    current_y = card_y1 + padding_y + total_title_h + space_y
+    for line in countdown_lines:
+        line_bbox = font_countdown.getbbox(line)
+        line_w = line_bbox[2] - line_bbox[0]
+        line_x = (w - line_w) // 2
+        draw_text.text((line_x, current_y), line, fill=(tr, tg, tb, 255), font=font_countdown)
+        current_y += countdown_line_h + line_spacing
 
     img = Image.alpha_composite(img, text_layer)
 
