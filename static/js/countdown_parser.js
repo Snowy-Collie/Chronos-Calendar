@@ -73,11 +73,15 @@ function calculateRemainingTime(targetTimeStr, isAllDay, enabledUnits = ['y', 'd
     }
   }
 
-  // Calculate units
-  let remainingSeconds = Math.max(0, Math.floor(diffMs / 1000));
+  // Define ordered units list
+  const orderedUnits = ['y', 'd', 'h', 'm', 's'];
   
-  if (diffMs < 0) {
-    remainingSeconds = Math.abs(Math.floor(diffMs / 1000));
+  // Filter active units in order
+  const activeUnits = orderedUnits.filter(u => enabledUnits.includes(u));
+
+  if (activeUnits.length === 0) {
+    // If no units enabled, default to showing days
+    activeUnits.push('d');
   }
 
   const result = {
@@ -90,28 +94,42 @@ function calculateRemainingTime(targetTimeStr, isAllDay, enabledUnits = ['y', 'd
     totalDiffMs: diffMs
   };
 
-  // Define ordered units list
-  const orderedUnits = ['y', 'd', 'h', 'm', 's'];
-  
-  // Filter active units in order
-  const activeUnits = orderedUnits.filter(u => enabledUnits.includes(u));
+  // Check if the smallest active unit is 'd' or 'y' (i.e. no hours, minutes, seconds)
+  const hasTimeUnits = activeUnits.includes('h') || activeUnits.includes('m') || activeUnits.includes('s');
 
-  if (activeUnits.length === 0) {
-    // If no units enabled, default to showing days
-    activeUnits.push('d');
-  }
+  if (!hasTimeUnits) {
+    // Calculate calendar days difference (midnight to midnight)
+    const targetMidnight = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+    const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diffDays = Math.round((targetMidnight.getTime() - nowMidnight.getTime()) / (24 * 60 * 60 * 1000));
+    let absDays = Math.abs(diffDays);
 
-  // Distribute remaining seconds among active units
-  for (let i = 0; i < activeUnits.length; i++) {
-    const unit = activeUnits[i];
-    const unitSec = UNIT_SECONDS[unit];
-    
-    if (i === activeUnits.length - 1) {
-      // Last active unit gets all remaining seconds
-      result[unit] = Math.floor(remainingSeconds / unitSec);
+    if (activeUnits.includes('y') && activeUnits.includes('d')) {
+      result.y = Math.floor(absDays / 365);
+      result.d = absDays % 365;
+    } else if (activeUnits.includes('y')) {
+      result.y = Math.round(absDays / 365);
     } else {
-      result[unit] = Math.floor(remainingSeconds / unitSec);
-      remainingSeconds = remainingSeconds % unitSec;
+      result.d = absDays;
+    }
+  } else {
+    // Distribute remaining seconds mathematically among active units
+    let remainingSeconds = Math.max(0, Math.floor(diffMs / 1000));
+    if (diffMs < 0) {
+      remainingSeconds = Math.abs(Math.floor(diffMs / 1000));
+    }
+
+    for (let i = 0; i < activeUnits.length; i++) {
+      const unit = activeUnits[i];
+      const unitSec = UNIT_SECONDS[unit];
+      
+      if (i === activeUnits.length - 1) {
+        // Last active unit gets all remaining seconds
+        result[unit] = Math.floor(remainingSeconds / unitSec);
+      } else {
+        result[unit] = Math.floor(remainingSeconds / unitSec);
+        remainingSeconds = remainingSeconds % unitSec;
+      }
     }
   }
 

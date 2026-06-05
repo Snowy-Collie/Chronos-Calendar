@@ -577,92 +577,205 @@ function closePreview() {
 }
 
 // Save Fullscreen Preview Box as Photo
+// Save Fullscreen Preview Box as Photo
 function savePreviewAsPhoto() {
   if (!activePreviewEvent) return;
-  
-  const captureBox = document.getElementById('preview-capture-box');
-  const previewContentBox = document.querySelector('.preview-content-box');
-  
-  // Cache original styles
-  const originalBackground = previewContentBox.style.background;
-  const originalBorder = previewContentBox.style.border;
-  const originalBackdropFilter = previewContentBox.style.backdropFilter;
-  const originalWebkitBackdropFilter = previewContentBox.style.webkitBackdropFilter;
-  
-  // Calculate temporary style for html2canvas (bumping opacity to display the card clearly without backdrop-filter)
-  const cardHex = activePreviewEvent.card_color || '#ffffff';
-  const cardAlpha = activePreviewEvent.card_opacity !== undefined ? activePreviewEvent.card_opacity : 0.05;
-  
-  function getRgba(hex, alpha) {
-    let red = 255, green = 255, blue = 255;
-    if (hex.startsWith('#')) {
-      const cleanHex = hex.substring(1);
-      if (cleanHex.length === 3) {
-        red = parseInt(cleanHex[0] + cleanHex[0], 16);
-        green = parseInt(cleanHex[1] + cleanHex[1], 16);
-        blue = parseInt(cleanHex[2] + cleanHex[2], 16);
-      } else if (cleanHex.length === 6) {
-        red = parseInt(cleanHex.substring(0, 2), 16);
-        green = parseInt(cleanHex.substring(2, 4), 16);
-        blue = parseInt(cleanHex.substring(4, 6), 16);
+
+  const event = activePreviewEvent;
+  showToast("Rendering image, please wait...", 'success');
+
+  // Helper function to build off-screen poster DOM, run html2canvas, and download
+  function generateAndDownloadPoster(w, h) {
+    const posterContainer = document.createElement('div');
+    posterContainer.style.position = 'fixed';
+    posterContainer.style.left = '-9999px';
+    posterContainer.style.top = '-9999px';
+    posterContainer.style.width = w + 'px';
+    posterContainer.style.height = h + 'px';
+    posterContainer.style.zIndex = '-9999';
+    posterContainer.style.overflow = 'hidden';
+    posterContainer.style.fontFamily = getComputedStyle(document.body).fontFamily || "'Outfit', sans-serif";
+
+    // Background Layer
+    const bgLayer = document.createElement('div');
+    bgLayer.style.position = 'absolute';
+    bgLayer.style.top = '0';
+    bgLayer.style.left = '0';
+    bgLayer.style.width = '100%';
+    bgLayer.style.height = '100%';
+    bgLayer.style.backgroundSize = 'cover';
+    bgLayer.style.backgroundPosition = 'center';
+    bgLayer.style.backgroundRepeat = 'no-repeat';
+    if (event.bg_image) {
+      bgLayer.style.backgroundImage = `url(${event.bg_image})`;
+    } else {
+      bgLayer.style.backgroundColor = event.bg_color || '#1e1e2e';
+    }
+    posterContainer.appendChild(bgLayer);
+
+    // Overlay color layer
+    const overlayLayer = document.createElement('div');
+    overlayLayer.style.position = 'absolute';
+    overlayLayer.style.top = '0';
+    overlayLayer.style.left = '0';
+    overlayLayer.style.width = '100%';
+    overlayLayer.style.height = '100%';
+    overlayLayer.style.zIndex = '2';
+
+    const bgOverlayColor = event.bg_color || '#1e1e2e';
+    const bgOverlayOpacity = event.bg_opacity !== undefined ? event.bg_opacity : 1.0;
+
+    let r = 30, g = 30, b = 46;
+    if (bgOverlayColor.startsWith('#')) {
+      const clean = bgOverlayColor.substring(1);
+      if (clean.length === 3) {
+        r = parseInt(clean[0] + clean[0], 16);
+        g = parseInt(clean[1] + clean[1], 16);
+        b = parseInt(clean[2] + clean[2], 16);
+      } else if (clean.length === 6) {
+        r = parseInt(clean.substring(0, 2), 16);
+        g = parseInt(clean.substring(2, 4), 16);
+        b = parseInt(clean.substring(4, 6), 16);
       }
     }
-    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+    overlayLayer.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${bgOverlayOpacity})`;
+    posterContainer.appendChild(overlayLayer);
+
+    // Card Container
+    const card = document.createElement('div');
+    card.style.position = 'absolute';
+    card.style.top = '50%';
+    card.style.left = '50%';
+    card.style.transform = 'translate(-50%, -50%)';
+    card.style.zIndex = '3';
+    card.style.textAlign = 'center';
+    card.style.boxShadow = '0 30px 60px rgba(0, 0, 0, 0.4)';
+
+    // Proportional scale factor based on width
+    // Base standard size: 1920 for landscape, 1080 for portrait
+    const isLandscape = w > h;
+    const baselineWidth = isLandscape ? 1920 : 1080;
+    const scale = w / baselineWidth;
+
+    const cardWidth = isLandscape ? Math.round(500 * scale) : Math.round(310 * scale);
+    card.style.width = cardWidth + 'px';
+    card.style.maxWidth = '85%';
+    card.style.borderRadius = Math.round(24 * scale) + 'px';
+    card.style.padding = Math.round(60 * scale) + 'px ' + Math.round(48 * scale) + 'px';
+
+    const cardHex = event.card_color || '#ffffff';
+    const cardAlpha = event.card_opacity !== undefined ? event.card_opacity : 0.05;
+
+    let cr = 255, cg = 255, cb = 255;
+    if (cardHex.startsWith('#')) {
+      const clean = cardHex.substring(1);
+      if (clean.length === 3) {
+        cr = parseInt(clean[0] + clean[0], 16);
+        cg = parseInt(clean[1] + clean[1], 16);
+        cb = parseInt(clean[2] + clean[2], 16);
+      } else if (clean.length === 6) {
+        cr = parseInt(clean.substring(0, 2), 16);
+        cg = parseInt(clean.substring(2, 4), 16);
+        cb = parseInt(clean.substring(4, 6), 16);
+      }
+    }
+
+    let finalAlpha = cardAlpha;
+    if (event.card_effect === 'glass') {
+      finalAlpha = Math.max(0.25, cardAlpha * 2.0);
+      card.style.border = `${1.5 * scale}px solid rgba(255, 255, 255, 0.25)`;
+    } else {
+      finalAlpha = Math.max(0.3, cardAlpha);
+      card.style.border = `${1 * scale}px solid rgba(255, 255, 255, 0.1)`;
+    }
+    card.style.backgroundColor = `rgba(${cr}, ${cg}, ${cb}, ${finalAlpha})`;
+
+    // Title Elements
+    const titleEl = document.createElement('h2');
+    titleEl.textContent = event.title;
+    titleEl.style.fontSize = Math.round(24 * scale) + 'px';
+    titleEl.style.fontWeight = '500';
+    titleEl.style.marginBottom = Math.round(24 * scale) + 'px';
+    titleEl.style.letterSpacing = (0.5 * scale) + 'px';
+    titleEl.style.color = event.text_color || '#ffffff';
+    titleEl.style.marginTop = '0';
+
+    // Countdown Elements
+    const countdownEl = document.createElement('div');
+    countdownEl.textContent = getCountdownString(event);
+    countdownEl.style.fontSize = (isLandscape ? Math.round(48 * scale) : Math.round(35 * scale)) + 'px';
+    countdownEl.style.fontWeight = '700';
+    countdownEl.style.letterSpacing = (-1 * scale) + 'px';
+    countdownEl.style.lineHeight = '1.2';
+    countdownEl.style.textShadow = `0 ${3 * scale}px ${12 * scale}px rgba(0, 0, 0, 0.5)`;
+    countdownEl.style.color = event.text_color || '#ffffff';
+
+    card.appendChild(titleEl);
+    card.appendChild(countdownEl);
+    posterContainer.appendChild(card);
+
+    document.body.appendChild(posterContainer);
+
+    setTimeout(() => {
+      html2canvas(posterContainer, {
+        useCORS: true,
+        allowTaint: true,
+        scale: 1, // Scaled manually by w/h absolute dimensions
+        scrollX: 0,
+        scrollY: 0,
+        width: w,
+        height: h,
+        windowWidth: w,
+        windowHeight: h,
+        x: 0,
+        y: 0
+      }).then(canvas => {
+        document.body.removeChild(posterContainer);
+
+        const dataUrl = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.download = `countdown-${event.title.replace(/\s+/g, '_')}.png`;
+        link.href = dataUrl;
+        link.click();
+        showToast(t('saveSuccess'), 'success');
+      }).catch(err => {
+        if (posterContainer.parentNode) {
+          document.body.removeChild(posterContainer);
+        }
+        console.error("Poster export failure:", err);
+        showToast(t('uploadError'), 'error');
+      });
+    }, 50);
   }
 
-  // Temporarily disable backdrop filter for html2canvas compatibility
-  previewContentBox.style.backdropFilter = 'none';
-  previewContentBox.style.webkitBackdropFilter = 'none';
-
-  if (activePreviewEvent.card_effect === 'glass') {
-    // Increase alpha to make the card shape visible
-    const captureAlpha = Math.max(0.25, cardAlpha * 2.0);
-    previewContentBox.style.background = getRgba(cardHex, captureAlpha);
-    previewContentBox.style.border = '1.5px solid rgba(255, 255, 255, 0.25)';
+  if (event.bg_image) {
+    const img = new Image();
+    img.src = event.bg_image;
+    img.onload = function() {
+      let w = img.naturalWidth || 1920;
+      let h = img.naturalHeight || 1080;
+      // Cap the max dimension to 2000px to prevent memory limits
+      const maxDim = 2000;
+      if (w > maxDim || h > maxDim) {
+        const ratio = w / h;
+        if (w > h) {
+          w = maxDim;
+          h = Math.round(maxDim / ratio);
+        } else {
+          h = maxDim;
+          w = Math.round(maxDim * ratio);
+        }
+      }
+      generateAndDownloadPoster(w, h);
+    };
+    img.onerror = function() {
+      // Fallback if image fails to load
+      generateAndDownloadPoster(1920, 1080);
+    };
   } else {
-    const captureAlpha = Math.max(0.3, cardAlpha);
-    previewContentBox.style.background = getRgba(cardHex, captureAlpha);
-    previewContentBox.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+    // If no background image, use 1920x1080 as requested
+    generateAndDownloadPoster(1920, 1080);
   }
-
-  // Notify user
-  showToast("Rendering image, please wait...", 'success');
-  
-  html2canvas(captureBox, {
-    useCORS: true,
-    allowTaint: true,
-    scale: 2, // Higher export resolution
-    scrollX: 0,
-    scrollY: 0,
-    width: captureBox.clientWidth,
-    height: captureBox.clientHeight,
-    windowWidth: captureBox.clientWidth,
-    windowHeight: captureBox.clientHeight,
-    x: 0,
-    y: 0
-  }).then(canvas => {
-    // Restore original styles immediately
-    previewContentBox.style.background = originalBackground;
-    previewContentBox.style.border = originalBorder;
-    previewContentBox.style.backdropFilter = originalBackdropFilter;
-    previewContentBox.style.webkitBackdropFilter = originalWebkitBackdropFilter;
-
-    const dataUrl = canvas.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.download = `countdown-${activePreviewEvent.title.replace(/\s+/g, '_')}.png`;
-    link.href = dataUrl;
-    link.click();
-    showToast(t('saveSuccess'), 'success');
-  }).catch(err => {
-    // Restore original styles in case of error
-    previewContentBox.style.background = originalBackground;
-    previewContentBox.style.border = originalBorder;
-    previewContentBox.style.backdropFilter = originalBackdropFilter;
-    previewContentBox.style.webkitBackdropFilter = originalWebkitBackdropFilter;
-
-    console.error("Canvas export failure:", err);
-    showToast(t('uploadError'), 'error');
-  });
 }
 
 // Open Event Editor Modal
