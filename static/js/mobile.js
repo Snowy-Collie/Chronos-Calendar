@@ -645,51 +645,50 @@ function savePreviewAsPhoto() {
     card.style.textAlign = 'center';
     card.style.boxShadow = '0 30px 60px rgba(0, 0, 0, 0.4)';
 
-    // Proportional scale factor based on width
-    // Base standard size: 1080 for portrait, 1920 for landscape (if background image is landscape)
+    // Proportional card width based on poster width
     const isLandscape = w > h;
-    const baselineWidth = isLandscape ? 1920 : 1080;
-    const scale = w / baselineWidth;
+    const cardWidth = isLandscape ? Math.round(w * 0.42) : Math.round(w * 0.80);
+    
+    // Base card width used for font/padding scale calculations
+    const baseCardWidth = isLandscape ? 500 : 310;
+    const scale = cardWidth / baseCardWidth;
 
-    const cardWidth = isLandscape ? Math.round(500 * scale) : Math.round(310 * scale);
     card.style.width = cardWidth + 'px';
     card.style.maxWidth = '85%';
-    card.style.borderRadius = Math.round(20 * scale) + 'px';
-    card.style.padding = Math.round(50 * scale) + 'px ' + Math.round(24 * scale) + 'px';
+    card.style.borderRadius = Math.round((isLandscape ? 24 : 20) * scale) + 'px';
+    card.style.padding = Math.round((isLandscape ? 60 : 50) * scale) + 'px ' + Math.round((isLandscape ? 48 : 24) * scale) + 'px';
 
     const cardHex = event.card_color || '#ffffff';
     const cardAlpha = event.card_opacity !== undefined ? event.card_opacity : 0.05;
 
-    let cr = 255, cg = 255, cb = 255;
-    if (cardHex.startsWith('#')) {
-      const clean = cardHex.substring(1);
-      if (clean.length === 3) {
-        cr = parseInt(clean[0] + clean[0], 16);
-        cg = parseInt(clean[1] + clean[1], 16);
-        cb = parseInt(clean[2] + clean[2], 16);
-      } else if (clean.length === 6) {
-        cr = parseInt(clean.substring(0, 2), 16);
-        cg = parseInt(clean.substring(2, 4), 16);
-        cb = parseInt(clean.substring(4, 6), 16);
+    // Helper to get RGBA string
+    function getRgba(hex, alpha) {
+      let red = 255, green = 255, blue = 255;
+      if (hex.startsWith('#')) {
+        const cleanHex = hex.substring(1);
+        if (cleanHex.length === 3) {
+          red = parseInt(cleanHex[0] + cleanHex[0], 16);
+          green = parseInt(cleanHex[1] + cleanHex[1], 16);
+          blue = parseInt(cleanHex[2] + cleanHex[2], 16);
+        } else if (cleanHex.length === 6) {
+          red = parseInt(cleanHex.substring(0, 2), 16);
+          green = parseInt(cleanHex.substring(2, 4), 16);
+          blue = parseInt(cleanHex.substring(4, 6), 16);
+        }
       }
+      return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
     }
 
-    let finalAlpha = cardAlpha;
-    if (event.card_effect === 'glass') {
-      finalAlpha = Math.max(0.25, cardAlpha * 2.0);
-      card.style.border = `${1.5 * scale}px solid rgba(255, 255, 255, 0.25)`;
-    } else {
-      finalAlpha = Math.max(0.3, cardAlpha);
-      card.style.border = `${1 * scale}px solid rgba(255, 255, 255, 0.1)`;
-    }
-    card.style.backgroundColor = `rgba(${cr}, ${cg}, ${cb}, ${finalAlpha})`;
+    card.style.background = getRgba(cardHex, cardAlpha);
+    card.style.border = `${1 * scale}px solid rgba(255, 255, 255, 0.12)`;
 
     // Title Elements
     const titleEl = document.createElement('h2');
     titleEl.textContent = event.title;
-    titleEl.style.fontSize = Math.round(20 * scale) + 'px';
+    const baseTitleSize = isLandscape ? 24 : 20;
+    titleEl.style.fontSize = Math.round(baseTitleSize * scale) + 'px';
     titleEl.style.fontWeight = '500';
-    titleEl.style.marginBottom = Math.round(20 * scale) + 'px';
+    titleEl.style.marginBottom = Math.round((isLandscape ? 24 : 20) * scale) + 'px';
     titleEl.style.letterSpacing = (0.5 * scale) + 'px';
     titleEl.style.color = event.text_color || '#ffffff';
     titleEl.style.marginTop = '0';
@@ -697,10 +696,11 @@ function savePreviewAsPhoto() {
     // Countdown Elements
     const countdownEl = document.createElement('div');
     countdownEl.textContent = getCountdownString(event);
-    countdownEl.style.fontSize = (isLandscape ? Math.round(48 * scale) : Math.round(35 * scale)) + 'px';
+    const baseCountdownSize = isLandscape ? 48 : 35;
+    countdownEl.style.fontSize = Math.round(baseCountdownSize * scale) + 'px';
     countdownEl.style.fontWeight = '700';
-    countdownEl.style.letterSpacing = (-0.5 * scale) + 'px';
-    countdownEl.style.lineHeight = '1.25';
+    countdownEl.style.letterSpacing = ((isLandscape ? -1 : -0.5) * scale) + 'px';
+    countdownEl.style.lineHeight = isLandscape ? '1.2' : '1.25';
     countdownEl.style.textShadow = `0 ${3 * scale}px ${12 * scale}px rgba(0, 0, 0, 0.5)`;
     countdownEl.style.color = event.text_color || '#ffffff';
 
