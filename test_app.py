@@ -153,5 +153,11 @@ class CalendarBackendTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content_type, "image/png")
 
+        # Test generate_poster API route with UI language set to English, but title containing CJK
+        # (triggers automatic font detection to load JhengHei/YaHei instead of failing on Outfit)
+        response = self.client.get('/api/generate_poster/test_poster_event_id?lang=en&format=desktop')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content_type, "image/png")
+
 if __name__ == '__main__':
     unittest.main()

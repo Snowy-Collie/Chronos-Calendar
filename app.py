@@ -384,6 +384,24 @@ def wrap_text(text, font, max_width):
             
     return lines
 
+def detect_text_lang(text1, text2):
+    combined = text1 + " " + text2
+    has_cjk = False
+    has_kana = False
+    
+    for char in combined:
+        val = ord(char)
+        if (0x3000 <= val <= 0x9FFF) or (0xFF00 <= val <= 0xFFEF):
+            has_cjk = True
+        if (0x3040 <= val <= 0x309F) or (0x30A0 <= val <= 0x30FF):
+            has_kana = True
+            
+    if not has_cjk:
+        return 'en'
+    if has_kana:
+        return 'ja'
+    return 'zh'
+
 def hex_to_rgb(hex_str):
     hex_str = hex_str.lstrip('#')
     if len(hex_str) == 3:
@@ -669,10 +687,13 @@ def generate_poster(event_id):
     title_text = event['title']
     countdown_text = get_countdown_string_py(event, lang)
 
+    # Detect if actual text contains Chinese/Japanese characters and override font selection
+    font_lang = detect_text_lang(title_text, countdown_text)
+
     title_size = int((24 if is_landscape else 20) * scale)
     countdown_size = int((48 if is_landscape else 35) * scale)
-    font_title = load_font(lang, is_bold=False, size=title_size)
-    font_countdown = load_font(lang, is_bold=True, size=countdown_size)
+    font_title = load_font(font_lang, is_bold=False, size=title_size)
+    font_countdown = load_font(font_lang, is_bold=True, size=countdown_size)
 
     # Calculate padding and text widths
     padding_y = int((60 if is_landscape else 50) * scale)
