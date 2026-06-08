@@ -281,18 +281,35 @@ def load_font(lang, is_bold, size):
     # For Chinese and Japanese, we need CJK support
     cjk_fonts = []
     if lang == 'ja':
-        cjk_fonts = [
-            "meiryo.ttc",     # Meiryo (Japanese)
-            "msgothic.ttc",   # MS Gothic (Japanese)
-            "yugoth.ttc",     # Yu Gothic (Japanese)
-            "msyh.ttc"        # Microsoft YaHei
-        ]
+        if is_bold:
+            cjk_fonts = [
+                "meiryob.ttc",     # Meiryo Bold
+                "yugothb.ttc",     # Yu Gothic Bold
+                "msyhbd.ttc",      # Microsoft YaHei Bold
+                "meiryo.ttc",      # Meiryo fallback
+                "msyh.ttc"
+            ]
+        else:
+            cjk_fonts = [
+                "meiryo.ttc",      # Meiryo (Japanese)
+                "msgothic.ttc",    # MS Gothic (Japanese)
+                "yugoth.ttc",      # Yu Gothic (Japanese)
+                "msyh.ttc"         # Microsoft YaHei
+            ]
     else:  # 'zh' (Traditional Chinese, etc.)
-        cjk_fonts = [
-            "msjh.ttc",       # Microsoft JhengHei (Traditional Chinese)
-            "msyh.ttc",       # Microsoft YaHei (Chinese)
-            "simsun.ttc"      # SimSun
-        ]
+        if is_bold:
+            cjk_fonts = [
+                "msjhbd.ttc",      # Microsoft JhengHei Bold
+                "msyhbd.ttc",      # Microsoft YaHei Bold
+                "msjh.ttc",        # Microsoft JhengHei fallback
+                "msyh.ttc"
+            ]
+        else:
+            cjk_fonts = [
+                "msjh.ttc",        # Microsoft JhengHei (Traditional Chinese)
+                "msyh.ttc",        # Microsoft YaHei (Chinese)
+                "simsun.ttc"       # SimSun
+            ]
         
     fallback_list = cjk_fonts + ["arial.ttf", "msyh.ttc", "Calibri.ttf", "Helvetica.ttc"]
     
@@ -692,7 +709,7 @@ def generate_poster(event_id):
 
     title_size = int((24 if is_landscape else 20) * scale)
     countdown_size = int((48 if is_landscape else 35) * scale)
-    font_title = load_font(font_lang, is_bold=False, size=title_size)
+    font_title = load_font(font_lang, is_bold=True, size=title_size)
     font_countdown = load_font(font_lang, is_bold=True, size=countdown_size)
 
     # Calculate padding and text widths
@@ -820,6 +837,6 @@ def generate_poster(event_id):
     )
 
 if __name__ == '__main__':
-    # Run server locally on port 5000, listening on all network interfaces
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Run server locally on port 5000 in production mode (non-debug)
+    app.run(host='0.0.0.0', port=5000, debug=False)
 
