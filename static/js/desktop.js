@@ -743,6 +743,12 @@ async function uploadImageFile(file) {
     previewImg.src = result.url;
     uploadPreview.style.display = 'block';
     
+    // Automatically reduce overlay opacity to 40% if currently 100% to reveal the image
+    if (eventBgOpacity.value == 100) {
+      eventBgOpacity.value = 40;
+      opacityVal.textContent = '40%';
+    }
+    
     showToast(t('uploadSuccess'), 'success');
   } catch (error) {
     console.error("Upload failed:", error);
