@@ -12,3 +12,6 @@ ENV/
 data/
 *.json
 uploads/
+
+# Server keys
+serverkey/
